@@ -164,6 +164,9 @@ importers:
       '@routeforge/core':
         specifier: workspace:*
         version: link:../core
+      '@routeforge/crawler-puppeteer':
+        specifier: workspace:*
+        version: link:../crawler-puppeteer
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@latest
         version: '@voidzero-dev/vite-plus-core@0.1.13(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.3)'

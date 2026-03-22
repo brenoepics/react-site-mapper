@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 import { defineConfig, type Plugin } from "vite";
+import * as orchestrator from "../src/orchestrator";
 import crawlerPlugin, {
   type CrawlerPluginOptions,
   crawlerPlugin as namedCrawlerPlugin,
@@ -8,15 +9,16 @@ import crawlerPlugin, {
 } from "../src";
 
 describe("crawlerPlugin", () => {
-  test("returns a valid Vite plugin object with the expected shape", () => {
+  test("returns a valid Vite plugin object with the expected shape", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     try {
       const plugin = crawlerPlugin();
       const runtimePlugin = plugin as Plugin & {
         buildEnd?: (error?: Error | string) => void;
         buildStart?: () => void;
-        closeBundle?: () => void;
+        closeBundle?: () => Promise<void> | void;
         configResolved?: (config: unknown) => void;
         configureServer?: (server: unknown) => (() => void) | void;
       };
@@ -33,12 +35,14 @@ describe("crawlerPlugin", () => {
       runtimePlugin.configResolved?.({ command: "build" });
       expect(runtimePlugin.configureServer?.({})).toBeTypeOf("function");
       runtimePlugin.buildEnd?.("ok");
-      expect(runtimePlugin.closeBundle?.()).toBeUndefined();
+      await runtimePlugin.closeBundle?.();
 
       expect(log).toHaveBeenNthCalledWith(1, "[routeforge] Plugin initialized");
       expect(log).toHaveBeenNthCalledWith(2, "[routeforge] Build complete");
+      expect(warn).toHaveBeenCalledWith("[routeforge] No baseUrl configured - skipping crawl");
     } finally {
       log.mockRestore();
+      warn.mockRestore();
     }
   });
 
@@ -108,8 +112,12 @@ describe("crawlerPlugin", () => {
     ).toEqual([]);
   });
 
-  test("logs when the dev server starts and stops", () => {
+  test("logs when the dev server starts and stops", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
+      routes: [{ path: "/", source: "runtime" }],
+      durationMs: 1,
+    });
     const plugin = crawlerPlugin() as Plugin & {
       configResolved?: (config: unknown) => void;
       configureServer?: (server: unknown) => (() => void) | void;
@@ -131,16 +139,49 @@ describe("crawlerPlugin", () => {
       const cleanup = plugin.configureServer?.(server);
 
       httpServer.emit("listening");
+      await Promise.resolve();
       httpServer.emit("close");
       cleanup?.();
 
+      expect(runCrawl).toHaveBeenCalledWith("https://localhost:5173", {});
       expect(log).toHaveBeenNthCalledWith(
         1,
         "[routeforge] Dev server ready: https://localhost:5173",
       );
-      expect(log).toHaveBeenNthCalledWith(2, "[routeforge] Dev server closed");
+      expect(log).toHaveBeenNthCalledWith(2, "[routeforge] Starting crawl...");
+      expect(log).toHaveBeenNthCalledWith(3, "[routeforge] Discovered 1 routes");
+      expect(log).toHaveBeenNthCalledWith(4, "[routeforge] Dev server closed");
     } finally {
+      runCrawl.mockRestore();
       log.mockRestore();
+    }
+  });
+
+  test("logs crawl failures from the dev server hook", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const runCrawl = vi
+      .spyOn(orchestrator, "runCrawl")
+      .mockRejectedValue(new Error("crawl failed"));
+    const plugin = crawlerPlugin() as Plugin & {
+      configureServer?: (server: unknown) => (() => void) | void;
+    };
+    const httpServer = new EventEmitter() as EventEmitter & {
+      address(): { address: string; port: number } | null;
+      off(event: string, listener: (...args: never[]) => void): typeof httpServer;
+      once(event: string, listener: (...args: never[]) => void): typeof httpServer;
+    };
+
+    httpServer.address = () => ({ address: "127.0.0.1", port: 5173 });
+
+    try {
+      plugin.configureServer?.({ httpServer, resolvedUrls: null });
+      httpServer.emit("listening");
+      await Promise.resolve();
+
+      expect(error).toHaveBeenCalledWith("[routeforge] Crawl failed:", expect.any(Error));
+    } finally {
+      runCrawl.mockRestore();
+      error.mockRestore();
     }
   });
 
@@ -175,5 +216,111 @@ describe("crawlerPlugin", () => {
     expect(plugin.configureServer?.({ httpServer: null, resolvedUrls: null })).toBeTypeOf(
       "function",
     );
+  });
+
+  test("runs a build crawl in closeBundle when a base URL is available", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
+      routes: [{ path: "/", source: "runtime" }],
+      durationMs: 1,
+    });
+    const plugin = crawlerPlugin({ baseUrl: "https://example.com" }) as Plugin & {
+      closeBundle?: () => Promise<void>;
+    };
+
+    try {
+      await plugin.closeBundle?.();
+
+      expect(runCrawl).toHaveBeenCalledWith("https://example.com", {
+        baseUrl: "https://example.com",
+      });
+      expect(log).toHaveBeenCalledWith("[routeforge] Discovered 1 routes");
+    } finally {
+      runCrawl.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  test("skips build crawling when no base URL is configured", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
+      routes: [],
+      durationMs: 0,
+    });
+    const plugin = crawlerPlugin() as Plugin & {
+      closeBundle?: () => Promise<void>;
+    };
+
+    try {
+      await plugin.closeBundle?.();
+
+      expect(runCrawl).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith("[routeforge] No baseUrl configured - skipping crawl");
+    } finally {
+      runCrawl.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  test("logs build crawl failures without throwing", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const runCrawl = vi
+      .spyOn(orchestrator, "runCrawl")
+      .mockRejectedValue(new Error("build crawl failed"));
+    const plugin = crawlerPlugin({ baseUrl: "https://example.com" }) as Plugin & {
+      closeBundle?: () => Promise<void>;
+    };
+
+    try {
+      await plugin.closeBundle?.();
+
+      expect(error).toHaveBeenCalledWith("[routeforge] Crawl failed:", expect.any(Error));
+    } finally {
+      runCrawl.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  test("fully disables plugin side effects when enabled is false", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
+      routes: [{ path: "/", source: "runtime" }],
+      durationMs: 1,
+    });
+    const plugin = crawlerPlugin({ enabled: false, baseUrl: "https://example.com" }) as Plugin & {
+      buildStart?: () => void;
+      buildEnd?: () => void;
+      closeBundle?: () => Promise<void>;
+      configureServer?: (server: unknown) => (() => void) | void;
+    };
+    const httpServer = new EventEmitter() as EventEmitter & {
+      address(): { address: string; port: number } | null;
+      off(event: string, listener: (...args: never[]) => void): typeof httpServer;
+      once(event: string, listener: (...args: never[]) => void): typeof httpServer;
+    };
+
+    httpServer.address = () => ({ address: "127.0.0.1", port: 5173 });
+
+    try {
+      plugin.buildStart?.();
+      plugin.buildEnd?.();
+      await plugin.closeBundle?.();
+      const cleanup = plugin.configureServer?.({ httpServer, resolvedUrls: null });
+      httpServer.emit("listening");
+      await Promise.resolve();
+      cleanup?.();
+
+      expect(runCrawl).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      runCrawl.mockRestore();
+      log.mockRestore();
+      warn.mockRestore();
+      error.mockRestore();
+    }
   });
 });

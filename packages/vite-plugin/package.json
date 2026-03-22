@@ -25,7 +25,8 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@routeforge/core": "workspace:*"
+    "@routeforge/core": "workspace:*",
+    "@routeforge/crawler-puppeteer": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
