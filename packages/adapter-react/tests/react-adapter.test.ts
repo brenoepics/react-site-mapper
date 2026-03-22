@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vite-plus/test";
 import { readProjectContext } from "@routeforge/core";
+import * as staticExtractor from "../src/static-extractor";
 import { ReactAdapter } from "../src";
 
 describe("ReactAdapter", () => {
@@ -149,6 +150,32 @@ describe("ReactAdapter", () => {
       await rm(validRootDir, { force: true, recursive: true });
       await rm(missingRootDir, { force: true, recursive: true });
       await rm(malformedRootDir, { force: true, recursive: true });
+    }
+  });
+
+  test("logs non-Error extraction failures without throwing", async () => {
+    const adapter = new ReactAdapter();
+    const scanSpy = vi
+      .spyOn(staticExtractor, "scanSourceFiles")
+      .mockReturnValue(["/workspace/app/src/routes.tsx"]);
+    const extractSpy = vi
+      .spyOn(staticExtractor, "extractPathsFromSourceFile")
+      .mockImplementation(() => {
+        throw "plain failure";
+      });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await expect(
+        adapter.extractStaticRoutes({ rootDir: "/workspace/app", packageJson: {} }),
+      ).resolves.toEqual([]);
+      expect(warn).toHaveBeenCalledWith(
+        "Skipping unparseable route file: /workspace/app/src/routes.tsx (plain failure)",
+      );
+    } finally {
+      scanSpy.mockRestore();
+      extractSpy.mockRestore();
+      warn.mockRestore();
     }
   });
 });

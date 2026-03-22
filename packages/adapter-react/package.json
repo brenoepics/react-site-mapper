@@ -25,9 +25,13 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@babel/parser": "catalog:",
+    "@babel/traverse": "catalog:",
+    "@babel/types": "catalog:",
     "@routeforge/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/babel__traverse": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "7.0.0-dev.20260316.1",
     "bumpp": "^11.0.1",

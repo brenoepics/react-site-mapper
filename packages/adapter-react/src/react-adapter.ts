@@ -1,4 +1,5 @@
-import type { ProjectContext, RouteAdapter } from "@routeforge/core";
+import type { ProjectContext, Route, RouteAdapter } from "@routeforge/core";
+import { extractPathsFromSourceFile, scanSourceFiles } from "./static-extractor";
 
 /**
  * React adapter detection for React Router-based projects.
@@ -29,6 +30,26 @@ export class ReactAdapter implements RouteAdapter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Extracts statically declared React Router paths from project source files.
+   */
+  async extractStaticRoutes(project: ProjectContext): Promise<Route[]> {
+    const routes = new Map<string, Route>();
+
+    for (const filePath of scanSourceFiles(project.rootDir)) {
+      try {
+        for (const path of extractPathsFromSourceFile(filePath)) {
+          routes.set(path, { path, source: "static" });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Skipping unparseable route file: ${filePath} (${message})`);
+      }
+    }
+
+    return [...routes.values()];
   }
 }
 
