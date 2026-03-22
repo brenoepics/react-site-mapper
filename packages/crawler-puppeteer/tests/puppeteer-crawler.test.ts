@@ -340,4 +340,31 @@ describe("PuppeteerCrawler", () => {
     ).rejects.toThrowError("Launch failed");
     expect(close).not.toHaveBeenCalled();
   });
+
+  test("disables the sandbox on Linux runners", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: "linux",
+    });
+    goto.mockImplementation(async () => {});
+    evaluate.mockImplementation(async (script: () => unknown) => {
+      return script.toString().includes("document.querySelectorAll") ? [] : [];
+    });
+
+    try {
+      const crawler = new PuppeteerCrawler({ launch });
+      await crawler.crawl("https://example.com", { interactionDelay: 0 });
+
+      expect(launch).toHaveBeenCalledWith({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+    } finally {
+      if (platform) {
+        Object.defineProperty(process, "platform", platform);
+      }
+    }
+  });
 });

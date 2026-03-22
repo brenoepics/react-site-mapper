@@ -1,9 +1,12 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 import { CRAWL_STRATEGIES, DEFAULT_CRAWL_MAX_DEPTH, OUTPUT_FORMATS, ROUTE_SOURCES } from "../src";
 import {
   Container,
   PluginManager,
   SERVICE_KEYS,
+  readProjectContext,
   registerAdapter,
   registerConfig,
   registerCrawler,
@@ -48,6 +51,59 @@ describe("public runtime exports", () => {
     });
     expect(typeof coreModule.Container).toBe("function");
     expect(typeof coreModule.PluginManager).toBe("function");
+    expect(typeof coreModule.readProjectContext).toBe("function");
+  });
+});
+
+describe("project context", () => {
+  test("reads and parses package.json from disk", async () => {
+    const rootDir = await mkdtemp(join(import.meta.dirname, "context-fixture-"));
+
+    try {
+      await writeFile(
+        join(rootDir, "package.json"),
+        JSON.stringify({ name: "fixture", dependencies: { react: "^19.0.0" } }),
+      );
+
+      expect(readProjectContext(rootDir)).toEqual({
+        rootDir,
+        packageJson: { name: "fixture", dependencies: { react: "^19.0.0" } },
+      });
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
+  test("returns an empty package object when package.json is missing or malformed", async () => {
+    const missingRootDir = await mkdtemp(join(import.meta.dirname, "context-missing-"));
+    const malformedRootDir = await mkdtemp(join(import.meta.dirname, "context-malformed-"));
+    const invalidShapeRootDir = await mkdtemp(join(import.meta.dirname, "context-invalid-shape-"));
+
+    try {
+      await mkdir(malformedRootDir, { recursive: true });
+      await writeFile(join(malformedRootDir, "package.json"), "not json");
+      await writeFile(
+        join(invalidShapeRootDir, "package.json"),
+        JSON.stringify(["not", "an", "object"]),
+      );
+
+      expect(readProjectContext(missingRootDir)).toEqual({
+        rootDir: missingRootDir,
+        packageJson: {},
+      });
+      expect(readProjectContext(malformedRootDir)).toEqual({
+        rootDir: malformedRootDir,
+        packageJson: {},
+      });
+      expect(readProjectContext(invalidShapeRootDir)).toEqual({
+        rootDir: invalidShapeRootDir,
+        packageJson: {},
+      });
+    } finally {
+      await rm(missingRootDir, { force: true, recursive: true });
+      await rm(malformedRootDir, { force: true, recursive: true });
+      await rm(invalidShapeRootDir, { force: true, recursive: true });
+    }
   });
 });
 

@@ -16,7 +16,7 @@ type HistoryChange = {
 };
 
 type BrowserLauncher = {
-  launch(options: { headless: boolean }): Promise<Browser>;
+  launch(options: { headless: boolean; args?: string[] }): Promise<Browser>;
 };
 
 const DEFAULT_INTERACTION_DELAY = 500;
@@ -26,6 +26,17 @@ const DEFAULT_INTERACTION_DELAY = 500;
  */
 export class PuppeteerCrawler implements Crawler {
   constructor(private readonly browserLauncher: BrowserLauncher = puppeteer) {}
+
+  private getLaunchOptions(): { headless: boolean; args?: string[] } {
+    if (process.platform === "linux") {
+      return {
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      };
+    }
+
+    return { headless: true };
+  }
 
   /**
    * Launches a browser, visits pages breadth-first, and extracts same-origin links.
@@ -43,7 +54,7 @@ export class PuppeteerCrawler implements Crawler {
     let browser: Browser | undefined;
 
     try {
-      browser = await this.browserLauncher.launch({ headless: true });
+      browser = await this.browserLauncher.launch(this.getLaunchOptions());
       const page = await browser.newPage();
       await this.injectHistoryCapture(page);
 
