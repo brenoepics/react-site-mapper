@@ -2,6 +2,10 @@ import { createServer } from "node:http";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { PuppeteerCrawler } from "../src";
 
+function sortRoutesByPath<T extends { path: string }>(routes: T[]): T[] {
+  return [...routes].sort((left, right) => left.path.localeCompare(right.path));
+}
+
 describe("PuppeteerCrawler integration", () => {
   let stopServer: (() => Promise<void>) | undefined;
 
@@ -96,11 +100,11 @@ describe("PuppeteerCrawler integration", () => {
 
     expect(result.errors).toBeUndefined();
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
-    expect(result.routes).toEqual([
+    expect(sortRoutesByPath(result.routes)).toEqual([
       { path: "/", source: "runtime" },
       { path: "/about", source: "runtime" },
-      { path: "/docs", source: "runtime" },
       { path: "/contact", source: "runtime" },
+      { path: "/docs", source: "runtime" },
       { path: "/docs/getting-started", source: "runtime" },
     ]);
   }, 30_000);
@@ -166,5 +170,44 @@ describe("PuppeteerCrawler integration", () => {
       { path: "/spa/dashboard", source: "runtime" },
       { path: "/spa/settings", source: "runtime" },
     ]);
+  }, 30_000);
+
+  test("supports object constructor options without a custom browser launcher", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(`<!doctype html><html lang="en"><body><a href="/plain">Plain</a></body></html>`);
+    });
+
+    const address = await new Promise<string>((resolve, reject) => {
+      server.listen(0, "127.0.0.1", () => {
+        const serverAddress = server.address();
+        if (serverAddress && typeof serverAddress === "object") {
+          resolve(`http://127.0.0.1:${serverAddress.port}`);
+          return;
+        }
+
+        reject(new Error("Failed to resolve plain fixture server address"));
+      });
+      server.once("error", reject);
+    });
+
+    stopServer = async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    };
+
+    const crawler = new PuppeteerCrawler({});
+    const result = await crawler.crawl(address, { maxPages: 1 });
+
+    expect(result.errors).toBeUndefined();
+    expect(result.routes).toEqual([{ path: "/", source: "runtime" }]);
   }, 30_000);
 });

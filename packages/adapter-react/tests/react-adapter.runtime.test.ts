@@ -104,6 +104,18 @@ describe("ReactAdapter runtime enhancement", () => {
     expect(waitForNetworkIdle).toHaveBeenCalledWith({ idleTime: 100, timeout: 1000 });
   });
 
+  test("delegates adapter runtime collection to the shared helper", async () => {
+    const adapter = new ReactAdapter();
+    const evaluate = vi.fn().mockResolvedValue(["/users"]);
+
+    await expect(adapter.collectRuntimeRoutes({}, { interactionDelay: 0 })).resolves.toEqual([]);
+    await expect(
+      adapter.collectRuntimeRoutes({ evaluate }, { interactionDelay: 0 }),
+    ).resolves.toEqual([
+      { path: "/users", source: "runtime", meta: { runtimeSources: ["react-router-runtime"] } },
+    ]);
+  });
+
   test("uses the default interaction delay when none is provided", async () => {
     const evaluate = vi.fn().mockResolvedValue([]);
 

@@ -1,10 +1,14 @@
 import puppeteer, { type Browser, type Page } from "puppeteer";
 import {
   DEFAULT_CRAWL_MAX_DEPTH,
+  mergeRouteCollections,
+  mergeRouteMeta,
   type Crawler,
   type CrawlOptions,
   type CrawlError,
   type CrawlResult,
+  type Route,
+  type RouteAdapter,
 } from "@routeforge/core";
 import { groupRoutesByTemplate, toRoutesFromGroups } from "./param-extractor";
 import { DEFAULT_MAX_PAGES, isSameOrigin, normalizeUrl, toPathname } from "./utils";
@@ -19,13 +23,36 @@ type BrowserLauncher = {
   launch(options: { headless: boolean; args?: string[] }): Promise<Browser>;
 };
 
+type RuntimeAdapter = Pick<RouteAdapter, "enhanceRuntime" | "collectRuntimeRoutes">;
+
+type PuppeteerCrawlerOptions = {
+  adapter?: RuntimeAdapter;
+  browserLauncher?: BrowserLauncher;
+  staticRoutes?: Route[];
+};
+
 const DEFAULT_INTERACTION_DELAY = 500;
 
 /**
  * Crawls a page with Puppeteer and extracts same-origin anchor routes.
  */
 export class PuppeteerCrawler implements Crawler {
-  constructor(private readonly browserLauncher: BrowserLauncher = puppeteer) {}
+  private readonly adapter?: RuntimeAdapter;
+  private readonly browserLauncher: BrowserLauncher;
+  private readonly staticRoutes: Route[];
+
+  constructor(options: BrowserLauncher | PuppeteerCrawlerOptions = puppeteer) {
+    if ("launch" in options) {
+      this.browserLauncher = options;
+      this.adapter = undefined;
+      this.staticRoutes = [];
+      return;
+    }
+
+    this.browserLauncher = options.browserLauncher ?? puppeteer;
+    this.adapter = options.adapter;
+    this.staticRoutes = options.staticRoutes ?? [];
+  }
 
   private getLaunchOptions(): { headless: boolean; args?: string[] } {
     if (process.platform === "linux") {
@@ -47,6 +74,7 @@ export class PuppeteerCrawler implements Crawler {
     const errors: CrawlError[] = [];
     const visited = new Set<string>();
     const concretePaths = new Set<string>();
+    const adapterRuntimePaths = new Map<string, Route>();
     const queue: Array<{ url: string; depth: number }> = [{ url: normalizedStartUrl, depth: 0 }];
     const maxDepth = options.maxDepth ?? DEFAULT_CRAWL_MAX_DEPTH;
     const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
@@ -57,6 +85,7 @@ export class PuppeteerCrawler implements Crawler {
       browser = await this.browserLauncher.launch(this.getLaunchOptions());
       const page = await browser.newPage();
       await this.injectHistoryCapture(page);
+      await this.adapter?.enhanceRuntime?.(page);
 
       while (queue.length > 0) {
         const { url, depth } = queue.shift()!;
@@ -75,15 +104,23 @@ export class PuppeteerCrawler implements Crawler {
 
         visited.add(url);
 
-        const links = await this.visitPage(page, url, errors, interactionDelay);
+        const visit = await this.visitPage(page, url, errors, interactionDelay);
 
-        if (!links) {
+        if (!visit) {
           continue;
         }
 
         concretePaths.add(toPathname(url));
 
-        for (const link of links) {
+        for (const route of visit.adapterRoutes) {
+          adapterRuntimePaths.set(route.path, route);
+          concretePaths.add(route.path);
+        }
+
+        for (const link of [
+          ...visit.links,
+          ...visit.adapterRoutes.map((route) => new URL(route.path, url).toString()),
+        ]) {
           if (!isSameOrigin(link, normalizedStartUrl)) {
             continue;
           }
@@ -98,8 +135,16 @@ export class PuppeteerCrawler implements Crawler {
         }
       }
 
+      const runtimeRoutes = mergeRouteCollections(
+        toRoutesFromGroups(groupRoutesByTemplate([...concretePaths])),
+        buildAdapterRuntimeRoutes(adapterRuntimePaths),
+      );
+
       return {
-        routes: toRoutesFromGroups(groupRoutesByTemplate([...concretePaths])),
+        routes:
+          this.staticRoutes.length > 0
+            ? mergeRouteCollections(this.staticRoutes, runtimeRoutes)
+            : runtimeRoutes,
         errors: errors.length > 0 ? errors : undefined,
         durationMs: Date.now() - startedAt,
       };
@@ -171,7 +216,7 @@ export class PuppeteerCrawler implements Crawler {
     startUrl: string,
     errors: CrawlError[],
     interactionDelay: number,
-  ): Promise<string[] | undefined> {
+  ): Promise<{ adapterRoutes: Route[]; links: string[] } | undefined> {
     try {
       await page.goto(startUrl, { waitUntil: "networkidle2" });
     } catch (error) {
@@ -193,7 +238,13 @@ export class PuppeteerCrawler implements Crawler {
       this.collectDynamicRoutes(page),
     ]);
 
-    return [...anchorLinks, ...dynamicPaths.map((path) => new URL(path, startUrl).toString())];
+    const adapterRoutes =
+      (await this.adapter?.collectRuntimeRoutes?.(page, { interactionDelay: 0 })) ?? [];
+
+    return {
+      adapterRoutes,
+      links: [...anchorLinks, ...dynamicPaths.map((path) => new URL(path, startUrl).toString())],
+    };
   }
 
   private async extractAnchorLinks(page: Pick<Page, "evaluate">): Promise<string[]> {
@@ -224,4 +275,22 @@ export class PuppeteerCrawler implements Crawler {
     });
     /* c8 ignore stop */
   }
+}
+
+function buildAdapterRuntimeRoutes(routes: Map<string, Route>): Route[] {
+  const groups = groupRoutesByTemplate([...routes.keys()]);
+
+  return toRoutesFromGroups(groups)
+    .map((route) => {
+      const group = groups.find((candidate) => candidate.template === route.path);
+      const meta = group?.examples.reduce<Record<string, unknown> | undefined>(
+        (current, example) => {
+          return mergeRouteMeta(current, routes.get(example)?.meta);
+        },
+        route.meta,
+      );
+
+      return meta ? { ...route, meta } : route;
+    })
+    .sort((left, right) => left.path.localeCompare(right.path));
 }

@@ -31,6 +31,13 @@ export interface RouteAdapter {
    * Augments the browser runtime before or during crawling.
    */
   enhanceRuntime?(page: unknown): Promise<void>;
+  /**
+   * Collects framework-specific runtime routes from the current page state.
+   */
+  collectRuntimeRoutes?(
+    page: unknown,
+    options?: Pick<CrawlOptions, "interactionDelay">,
+  ): Promise<Route[]>;
 }
 
 /**

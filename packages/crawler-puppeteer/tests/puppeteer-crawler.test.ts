@@ -5,6 +5,10 @@ import { PuppeteerCrawler } from "../src";
 type MockPage = Pick<Page, "evaluate" | "evaluateOnNewDocument" | "goto">;
 type MockBrowser = Pick<Browser, "newPage" | "close">;
 
+function sortRoutesByPath<T extends { path: string }>(routes: T[]): T[] {
+  return [...routes].sort((left, right) => left.path.localeCompare(right.path));
+}
+
 describe("PuppeteerCrawler", () => {
   const launch = vi.fn();
   const goto = vi.fn();
@@ -162,12 +166,15 @@ describe("PuppeteerCrawler", () => {
         "https://example.com/contact",
         "https://example.com/docs/getting-started",
       ]);
-      expect(result).toEqual({
+      expect({
+        ...result,
+        routes: sortRoutesByPath(result.routes),
+      }).toEqual({
         routes: [
           { path: "/", source: "runtime" },
           { path: "/about", source: "runtime" },
-          { path: "/docs", source: "runtime" },
           { path: "/contact", source: "runtime" },
+          { path: "/docs", source: "runtime" },
           { path: "/docs/getting-started", source: "runtime" },
         ],
         errors: undefined,
@@ -301,6 +308,114 @@ describe("PuppeteerCrawler", () => {
         params: ["id"],
         source: "runtime",
         meta: { examples: ["/users/123", "/users/456"] },
+      },
+    ]);
+  });
+
+  test("merges adapter runtime routes with static routes into hybrid results", async () => {
+    const pages: Record<string, string[]> = {
+      "https://example.com/": ["https://example.com/users/123"],
+      "https://example.com/users/123": [],
+    };
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+    });
+    evaluate.mockImplementation(async (script: () => unknown) => {
+      return script.toString().includes("document.querySelectorAll")
+        ? (pages[currentUrl] ?? [])
+        : [];
+    });
+
+    const enhanceRuntime = vi.fn().mockResolvedValue(undefined);
+    const collectRuntimeRoutes = vi.fn().mockResolvedValue([
+      {
+        path: "/users/123",
+        source: "runtime",
+        meta: { runtimeSources: ["react-router-runtime"] },
+      },
+    ]);
+
+    const crawler = new PuppeteerCrawler({
+      adapter: { enhanceRuntime, collectRuntimeRoutes },
+      browserLauncher: { launch },
+      staticRoutes: [
+        {
+          path: "/users/:id",
+          params: ["id"],
+          source: "static",
+          meta: { staticSources: ["react-router-ast"] },
+        },
+      ],
+    });
+    const result = await crawler.crawl("https://example.com", { interactionDelay: 0 });
+
+    expect(enhanceRuntime).toHaveBeenCalledTimes(1);
+    expect(collectRuntimeRoutes).toHaveBeenCalled();
+    expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
+      {
+        path: "/users/:id",
+        params: ["id"],
+        source: "hybrid",
+        meta: {
+          examples: ["/users/123"],
+          runtimeFiles: [],
+          runtimeSources: ["react-router-runtime"],
+          staticFiles: [],
+          staticSources: ["react-router-ast"],
+        },
+      },
+    ]);
+  });
+
+  test("collects adapter runtime routes without static matches", async () => {
+    const pages: Record<string, string[]> = {
+      "https://example.com/": [],
+    };
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+    });
+    evaluate.mockImplementation(async (script: () => unknown) => {
+      return script.toString().includes("document.querySelectorAll")
+        ? (pages[currentUrl] ?? [])
+        : [];
+    });
+
+    const crawler = new PuppeteerCrawler({
+      adapter: {
+        async collectRuntimeRoutes() {
+          return [
+            { path: "/reports", source: "runtime" },
+            {
+              path: "/users/123",
+              source: "runtime",
+              meta: { runtimeSources: ["react-router-runtime"] },
+            },
+          ];
+        },
+      },
+      browserLauncher: { launch },
+    });
+    const result = await crawler.crawl("https://example.com", { interactionDelay: 0 });
+
+    expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
+      { path: "/reports", source: "runtime" },
+      {
+        path: "/users/:id",
+        params: ["id"],
+        source: "runtime",
+        meta: {
+          examples: ["/users/123"],
+          runtimeFiles: [],
+          runtimeSources: ["react-router-runtime"],
+          staticFiles: [],
+          staticSources: [],
+        },
       },
     ]);
   });

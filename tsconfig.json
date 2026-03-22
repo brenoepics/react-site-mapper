@@ -3,6 +3,14 @@
     "noEmit": true,
     "module": "preserve",
     "moduleResolution": "bundler",
+    "paths": {
+      "@routeforge/core": ["./packages/core/src/index.ts"],
+      "@routeforge/core/*": ["./packages/core/src/*"],
+      "@routeforge/adapter-react": ["./packages/adapter-react/src/index.ts"],
+      "@routeforge/adapter-react/*": ["./packages/adapter-react/src/*"],
+      "@routeforge/crawler-puppeteer": ["./packages/crawler-puppeteer/src/index.ts"],
+      "@routeforge/crawler-puppeteer/*": ["./packages/crawler-puppeteer/src/*"]
+    },
     "allowImportingTsExtensions": true,
     "esModuleInterop": true
   }

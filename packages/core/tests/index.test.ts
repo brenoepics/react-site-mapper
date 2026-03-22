@@ -482,6 +482,10 @@ describe("shared interfaces", () => {
       detect: (project: ProjectContext) => boolean;
       extractStaticRoutes?: (ctx: ProjectContext) => Promise<Route[]>;
       enhanceRuntime?: (page: unknown) => Promise<void>;
+      collectRuntimeRoutes?: (
+        page: unknown,
+        options?: Pick<CrawlOptions, "interactionDelay">,
+      ) => Promise<Route[]>;
     }>();
 
     expectTypeOf<Generator>().toMatchTypeOf<{
@@ -550,6 +554,9 @@ describe("shared interfaces", () => {
       async enhanceRuntime(page) {
         void page;
       },
+      async collectRuntimeRoutes(_page, options) {
+        return options?.interactionDelay === 500 ? [route] : [];
+      },
     };
 
     const generator: Generator = {
@@ -578,6 +585,7 @@ describe("shared interfaces", () => {
     const crawlResult = await crawler.crawl("https://example.com/users/123", crawlOptions);
     const staticRoutes = await adapter.extractStaticRoutes?.(project);
     await adapter.enhanceRuntime?.({});
+    const runtimeRoutes = await adapter.collectRuntimeRoutes?.({}, { interactionDelay: 500 });
     const xmlOutput = await generator.generate([route]);
     const jsonOutput = await generator.generate([route], { filename: "routes.json" });
     plugin.setup(pluginContext);
@@ -589,6 +597,7 @@ describe("shared interfaces", () => {
     ]);
     expect(crawlResult.durationMs).toBe(5);
     expect(staticRoutes).toEqual([route]);
+    expect(runtimeRoutes).toEqual([route]);
     expect(xmlOutput).toEqual({
       filename: "sitemap.xml",
       content: JSON.stringify([route]),

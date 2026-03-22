@@ -1,6 +1,6 @@
 import type { ProjectContext, Route, RouteAdapter } from "@routeforge/core";
 import { detectFileBasedRouting, extractFileBasedRoutes } from "./file-router";
-import { injectReactRuntime } from "./runtime";
+import { collectReactRoutes, injectReactRuntime } from "./runtime";
 import { extractPathsFromSourceFile, scanSourceFiles } from "./static-extractor";
 
 const AST_STATIC_SOURCE = "react-router-ast";
@@ -76,6 +76,16 @@ export class ReactAdapter implements RouteAdapter {
    */
   async enhanceRuntime(page: unknown): Promise<void> {
     await injectReactRuntime(page);
+  }
+
+  /**
+   * Collects React-specific runtime routes from the current page.
+   */
+  async collectRuntimeRoutes(
+    page: unknown,
+    options?: { interactionDelay?: number },
+  ): Promise<Route[]> {
+    return collectReactRoutes(page, options);
   }
 }
 
