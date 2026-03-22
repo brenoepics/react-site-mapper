@@ -1,5 +1,7 @@
 # Adapters
 
+Adapters teach Routeflux how a project defines routes.
+
 ## What adapters do
 
 Adapters tell Routeflux how to understand a project.
@@ -52,7 +54,7 @@ crawlerPlugin({
 
 When an adapter finds a route statically and the crawler confirms it at runtime, Routeflux upgrades it to `hybrid`.
 
-That merged route also keeps metadata such as:
+Merged routes keep metadata such as:
 
 - `meta.staticSources`
 - `meta.staticFiles`

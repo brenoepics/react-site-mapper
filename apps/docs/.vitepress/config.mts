@@ -4,11 +4,10 @@ import baseConfig from "vitepress-carbon/config";
 
 export default defineConfigWithTheme<ThemeConfig>({
   extends: baseConfig,
-  title: "React Site Mapper",
-  description:
-    "Route discovery, crawl-driven sitemaps, LLM maps, and metadata pipelines for React SPAs.",
+  title: "Routeflux",
+  description: "Route discovery and output generation for modern web apps.",
   srcDir: "src",
-  base: process.env.NODE_ENV === "production" ? "/react-site-mapper/" : "/",
+  base: process.env.NODE_ENV === "production" ? "/routeflux/" : "/",
 
   themeConfig: {
     nav: [

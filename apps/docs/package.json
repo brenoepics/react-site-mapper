@@ -2,7 +2,7 @@
   "name": "docs",
   "version": "0.0.1-alpha",
   "private": true,
-  "description": "Project documentation site for React Site Mapper.",
+  "description": "Project documentation site for Routeflux.",
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",

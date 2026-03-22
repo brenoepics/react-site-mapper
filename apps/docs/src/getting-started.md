@@ -3,7 +3,7 @@
 ## Current status
 
 > [!WARNING]
-> React Site Mapper is under heavy development.
+> Routeflux is under heavy development.
 > Do not use it in production yet.
 
 Routeflux finds routes and writes outputs automatically.

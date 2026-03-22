@@ -1,5 +1,7 @@
 # Vite Plugin
 
+Use Routeflux inside Vite.
+
 ## Minimal setup
 
 ```ts
@@ -45,7 +47,7 @@ export default defineConfig({
 | `adapters`   | `RouteAdapter[]`     | Additional adapter candidates checked before the built-in defaults.                         |
 | `plugins`    | `Plugin[]`           | Routeflux plugins that can reconfigure services through the container.                      |
 
-## Lifecycle behavior
+## Lifecycle
 
 ### `configureServer`
 

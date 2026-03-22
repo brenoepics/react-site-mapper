@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "React Site Mapper"
-  text: "Routes from real app behavior"
-  tagline: Static extraction, runtime crawling, simple outputs.
+  name: "Routeflux"
+  text: "Map app routes"
+  tagline: Crawl, merge, export.
   icon: "🗺️"
   actions:
     - theme: brand
@@ -18,7 +18,7 @@ features:
   - title: Static + runtime discovery
     details: Find routes from source and live navigation.
   - title: Framework adapters
-    details: Auto-detect React and Vue projects.
+    details: Auto-detect frameworks and routers.
   - title: Output generation
     details: Generate `routes.json` and `sitemap.xml`.
   - title: Built for monorepos
@@ -26,7 +26,9 @@ features:
 ---
 
 > [!WARNING]
-> This project is under heavy development and is not ready for production use.
+> Routeflux is under active development.
+
+Route discovery for modern web apps.
 
 Current packages:
 

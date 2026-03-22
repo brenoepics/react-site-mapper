@@ -40,7 +40,7 @@ jobs:
       - name: Run checks
         id: check
         continue-on-error: true
-        run: vp check && vp run check -r
+        run: vp run check -r
 
       - name: Run builds
         id: build

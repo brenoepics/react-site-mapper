@@ -25,7 +25,7 @@ Common examples:
 - `dist/routes.json`
 - `dist/sitemap.xml`
 
-## Why crawl-driven outputs
+## Why it helps
 
 Single-page apps often hide routes behind client-side navigation and async state.
 

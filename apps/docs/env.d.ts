@@ -3,3 +3,5 @@ declare module "vitepress-carbon/config" {
   const config: () => Promise<UserConfig>;
   export default config;
 }
+
+declare module "*.css";
