@@ -31,8 +31,13 @@ jobs:
       - name: Install dependencies
         run: vp install
 
-      - name: Build core package first
-        run: vp run core#build
+      - name: Build packages in dependency order
+        run: |
+          vp run core#build
+          vp run adapter-react#build
+          vp run adapter-vue#build
+          vp run crawler-puppeteer#build
+          vp run generators#build
 
       - name: Setup Chrome
         id: chrome

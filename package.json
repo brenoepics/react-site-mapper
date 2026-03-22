@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "bump:version": "node scripts/bump-version.mjs",
-    "check": "vp run core#build && vp run check -r",
-    "ready": "vp run core#build && vp fmt && vp run check -r && vp run test -r && vp run build -r",
+    "check": "vp run core#build && vp run adapter-react#build && vp run adapter-vue#build && vp run crawler-puppeteer#build && vp run generators#build && vp run check -r",
+    "ready": "vp run core#build && vp run adapter-react#build && vp run adapter-vue#build && vp run crawler-puppeteer#build && vp run generators#build && vp fmt && vp run check -r && vp run test -r && vp run build -r",
     "dev": "vp run website#dev",
     "docs": "vp run docs#dev",
     "prepare": "vp config"
