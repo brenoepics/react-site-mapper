@@ -24,16 +24,3 @@ features:
   - title: Built for monorepos
     details: Keep adapters, crawlers, plugins, and docs together.
 ---
-
-> [!WARNING]
-> Routeflux is under active development.
-
-Route discovery for modern web apps.
-
-Current packages:
-
-- `@routeflux/vite-plugin`
-- `@routeflux/crawler-puppeteer`
-- `@routeflux/adapter-react`
-- `@routeflux/adapter-vue`
-- `@routeflux/generators`
