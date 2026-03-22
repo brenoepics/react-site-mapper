@@ -146,7 +146,14 @@ describe("PuppeteerCrawler", () => {
       const crawler = new PuppeteerCrawler({ launch });
       const result = await crawler.crawl("https://example.com", { interactionDelay: 0 });
 
-      expect(launch).toHaveBeenCalledWith({ headless: true });
+      expect(launch).toHaveBeenCalledWith(
+        process.platform === "linux"
+          ? {
+              headless: true,
+              args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            }
+          : { headless: true },
+      );
       expect(evaluateOnNewDocument).toHaveBeenCalledTimes(1);
       expect(visitedOrder).toEqual([
         "https://example.com/",

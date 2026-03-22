@@ -80,17 +80,32 @@ function mergeStaticRoute(routes: Map<string, Route>, route: Route): void {
   }
 
   const existingMeta = existingRoute.meta ?? {};
-  const nextMeta = route.meta ?? {};
 
   routes.set(route.path, {
     ...existingRoute,
-    meta: {
-      ...existingMeta,
-      ...nextMeta,
-      staticFiles: mergeMetaStringArrays(existingMeta.staticFiles, nextMeta.staticFiles),
-      staticSources: mergeMetaStringArrays(existingMeta.staticSources, nextMeta.staticSources),
-    },
+    meta: mergeStaticRouteMetadata(existingMeta, route.meta),
   });
+}
+
+/**
+ * Merges static extraction metadata from multiple discovery strategies.
+ */
+export function mergeStaticRouteMetadata(
+  existingMeta: Record<string, unknown> | undefined,
+  nextMeta: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const safeExistingMeta = existingMeta ?? {};
+  const safeNextMeta = nextMeta ?? {};
+
+  return {
+    ...safeExistingMeta,
+    ...safeNextMeta,
+    staticFiles: mergeMetaStringArrays(safeExistingMeta.staticFiles, safeNextMeta.staticFiles),
+    staticSources: mergeMetaStringArrays(
+      safeExistingMeta.staticSources,
+      safeNextMeta.staticSources,
+    ),
+  };
 }
 
 function mergeMetaStringArrays(left: unknown, right: unknown): string[] {

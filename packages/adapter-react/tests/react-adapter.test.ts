@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vite-plus/test";
 import { readProjectContext } from "@routeforge/core";
 import * as fileRouter from "../src/file-router";
 import * as staticExtractor from "../src/static-extractor";
-import { ReactAdapter } from "../src";
+import { ReactAdapter, mergeStaticRouteMetadata } from "../src";
 
 describe("ReactAdapter", () => {
   test("detects a project with react and react-router-dom", () => {
@@ -259,5 +259,98 @@ describe("ReactAdapter", () => {
       extractSpy.mockRestore();
       fileBasedSpy.mockRestore();
     }
+  });
+
+  test("merges duplicate routes when existing metadata is missing or malformed", async () => {
+    const adapter = new ReactAdapter();
+    const fileRoutesSpy = vi
+      .spyOn(staticExtractor, "scanSourceFiles")
+      .mockReturnValue(["/workspace/app/src/routes.tsx"]);
+    const extractSpy = vi
+      .spyOn(staticExtractor, "extractPathsFromSourceFile")
+      .mockReturnValue(["/about", "/plain"]);
+    const fileBasedSpy = vi.spyOn(fileRouter, "extractFileBasedRoutes");
+
+    try {
+      fileBasedSpy.mockResolvedValue([
+        { path: "/about", source: "static" },
+        {
+          path: "/plain",
+          source: "static",
+          meta: {
+            staticFiles: "invalid",
+            staticSources: ["file-based-routing", 123],
+          },
+        } as unknown as Awaited<ReturnType<typeof fileRouter.extractFileBasedRoutes>>[number],
+      ]);
+
+      await expect(
+        adapter.extractStaticRoutes({ rootDir: "/workspace/app", packageJson: {} }),
+      ).resolves.toEqual([
+        {
+          path: "/about",
+          source: "static",
+          meta: {
+            staticFiles: ["/workspace/app/src/routes.tsx"],
+            staticSources: ["react-router-ast"],
+          },
+        },
+        {
+          path: "/plain",
+          source: "static",
+          meta: {
+            staticFiles: ["/workspace/app/src/routes.tsx"],
+            staticSources: ["file-based-routing", "react-router-ast"],
+          },
+        },
+      ]);
+    } finally {
+      fileRoutesSpy.mockRestore();
+      extractSpy.mockRestore();
+      fileBasedSpy.mockRestore();
+    }
+  });
+
+  test("merges static route metadata with missing and malformed values", () => {
+    expect(
+      mergeStaticRouteMetadata(undefined, {
+        staticFiles: ["/workspace/app/src/routes.tsx"],
+        staticSources: ["react-router-ast"],
+      }),
+    ).toEqual({
+      staticFiles: ["/workspace/app/src/routes.tsx"],
+      staticSources: ["react-router-ast"],
+    });
+
+    expect(
+      mergeStaticRouteMetadata(
+        {
+          staticFiles: ["/workspace/app/pages/index.tsx"],
+          staticSources: ["file-based-routing"],
+        },
+        undefined,
+      ),
+    ).toEqual({
+      staticFiles: ["/workspace/app/pages/index.tsx"],
+      staticSources: ["file-based-routing"],
+    });
+
+    expect(
+      mergeStaticRouteMetadata(
+        {
+          pagesRoot: "/workspace/app/pages",
+          staticFiles: "invalid",
+          staticSources: ["file-based-routing", 123],
+        },
+        {
+          staticFiles: ["/workspace/app/src/routes.tsx"],
+          staticSources: "invalid",
+        },
+      ),
+    ).toEqual({
+      pagesRoot: "/workspace/app/pages",
+      staticFiles: ["/workspace/app/src/routes.tsx"],
+      staticSources: ["file-based-routing"],
+    });
   });
 });

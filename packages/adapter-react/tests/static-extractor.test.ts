@@ -264,9 +264,30 @@ describe("static route extractor", () => {
       const adapter = new ReactAdapter();
 
       await expect(adapter.extractStaticRoutes?.({ rootDir, packageJson: {} })).resolves.toEqual([
-        { path: "/", source: "static" },
-        { path: "/settings", source: "static" },
-        { path: "/settings/profile", source: "static" },
+        {
+          path: "/",
+          source: "static",
+          meta: {
+            staticFiles: [join(rootDir, "src", "routes.tsx")],
+            staticSources: ["react-router-ast"],
+          },
+        },
+        {
+          path: "/settings",
+          source: "static",
+          meta: {
+            staticFiles: [join(rootDir, "src", "routes.tsx")],
+            staticSources: ["react-router-ast"],
+          },
+        },
+        {
+          path: "/settings/profile",
+          source: "static",
+          meta: {
+            staticFiles: [join(rootDir, "src", "routes.tsx")],
+            staticSources: ["react-router-ast"],
+          },
+        },
       ]);
     } finally {
       await rm(rootDir, { force: true, recursive: true });
