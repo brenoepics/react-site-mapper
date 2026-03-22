@@ -32,7 +32,7 @@ jobs:
         run: vp install
 
       - name: Install Chrome for Puppeteer
-        run: pnpm --filter @routeforge/crawler-puppeteer exec puppeteer browsers install chrome --install-deps
+        run: vp exec --filter @routeforge/crawler-puppeteer -- puppeteer browsers install chrome --install-deps
 
       - name: Run checks
         id: check
