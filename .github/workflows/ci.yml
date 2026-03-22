@@ -42,17 +42,17 @@ jobs:
         continue-on-error: true
         run: vp check && vp run check -r
 
+      - name: Run builds
+        id: build
+        continue-on-error: true
+        run: vp run build -r
+
       - name: Run tests
         id: test
         continue-on-error: true
         env:
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: vp run test -r
-
-      - name: Run builds
-        id: build
-        continue-on-error: true
-        run: vp run build -r
 
       - name: Write job summary
         if: always()
