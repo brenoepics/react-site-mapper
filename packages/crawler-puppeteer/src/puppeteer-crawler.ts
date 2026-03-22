@@ -1,5 +1,13 @@
 import puppeteer, { type Browser, type Page } from "puppeteer";
-import type { Crawler, CrawlOptions, CrawlError, CrawlResult, Route } from "@routeforge/core";
+import {
+  DEFAULT_CRAWL_MAX_DEPTH,
+  type Crawler,
+  type CrawlOptions,
+  type CrawlError,
+  type CrawlResult,
+  type Route,
+} from "@routeforge/core";
+import { DEFAULT_MAX_PAGES, isSameOrigin, normalizeUrl, toPathname } from "./utils";
 
 type BrowserLauncher = {
   launch(options: { headless: boolean }): Promise<Browser>;
@@ -12,22 +20,65 @@ export class PuppeteerCrawler implements Crawler {
   constructor(private readonly browserLauncher: BrowserLauncher = puppeteer) {}
 
   /**
-   * Launches a browser, visits the start URL, and extracts same-origin links.
+   * Launches a browser, visits pages breadth-first, and extracts same-origin links.
    */
-  async crawl(startUrl: string, _options: CrawlOptions): Promise<CrawlResult> {
+  async crawl(startUrl: string, options: CrawlOptions): Promise<CrawlResult> {
     const startedAt = Date.now();
-    const start = new URL(startUrl);
+    const normalizedStartUrl = normalizeUrl(startUrl);
     const errors: CrawlError[] = [];
+    const visited = new Set<string>();
+    const routes = new Map<string, Route>();
+    const queue: Array<{ url: string; depth: number }> = [{ url: normalizedStartUrl, depth: 0 }];
+    const maxDepth = options.maxDepth ?? DEFAULT_CRAWL_MAX_DEPTH;
+    const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     let browser: Browser | undefined;
 
     try {
       browser = await this.browserLauncher.launch({ headless: true });
       const page = await browser.newPage();
-      const links = await this.extractLinks(page, startUrl, errors);
-      const routes = this.toRoutes(start.origin, links);
+
+      while (queue.length > 0) {
+        const { url, depth } = queue.shift()!;
+
+        if (visited.has(url)) {
+          continue;
+        }
+
+        if (depth > maxDepth) {
+          continue;
+        }
+
+        if (visited.size >= maxPages) {
+          break;
+        }
+
+        visited.add(url);
+
+        const links = await this.extractLinks(page, url, errors);
+
+        if (!links) {
+          continue;
+        }
+
+        routes.set(toPathname(url), { path: toPathname(url), source: "runtime" });
+
+        for (const link of links) {
+          if (!isSameOrigin(link, normalizedStartUrl)) {
+            continue;
+          }
+
+          const normalizedLink = normalizeUrl(link);
+
+          if (visited.has(normalizedLink)) {
+            continue;
+          }
+
+          queue.push({ url: normalizedLink, depth: depth + 1 });
+        }
+      }
 
       return {
-        routes,
+        routes: [...routes.values()],
         errors: errors.length > 0 ? errors : undefined,
         durationMs: Date.now() - startedAt,
       };
@@ -40,7 +91,7 @@ export class PuppeteerCrawler implements Crawler {
     page: Page,
     startUrl: string,
     errors: CrawlError[],
-  ): Promise<string[]> {
+  ): Promise<string[] | undefined> {
     try {
       await page.goto(startUrl, { waitUntil: "networkidle2" });
     } catch (error) {
@@ -48,7 +99,7 @@ export class PuppeteerCrawler implements Crawler {
         url: startUrl,
         message: error instanceof Error ? error.message : String(error),
       });
-      return [];
+      return undefined;
     }
 
     /* c8 ignore start -- executed in the browser context during crawling */
@@ -58,24 +109,5 @@ export class PuppeteerCrawler implements Crawler {
         .filter((href) => href.startsWith("http"));
     });
     /* c8 ignore stop */
-  }
-
-  private toRoutes(origin: string, links: string[]): Route[] {
-    const routes = new Map<string, Route>();
-
-    for (const link of links) {
-      const url = new URL(link);
-
-      if (url.origin !== origin) {
-        continue;
-      }
-
-      routes.set(url.pathname, {
-        path: url.pathname,
-        source: "runtime",
-      });
-    }
-
-    return [...routes.values()];
   }
 }

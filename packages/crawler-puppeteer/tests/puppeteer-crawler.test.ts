@@ -34,14 +34,32 @@ describe("PuppeteerCrawler", () => {
   });
 
   test("extracts only same-origin routes and records duration", async () => {
-    goto.mockResolvedValue(undefined);
-    evaluate.mockResolvedValue([
-      "https://example.com/about",
-      "https://example.com/docs/getting-started",
-      "https://example.com/about",
-      "https://other.example.com/ignored",
-      "https://example.org/external",
-    ]);
+    const visitedOrder: string[] = [];
+    const pages: Record<string, string[]> = {
+      "https://example.com/": [
+        "https://example.com/about/",
+        "https://example.com/docs?ref=nav",
+        "https://example.org/external",
+      ],
+      "https://example.com/about": [
+        "https://example.com/contact#team",
+        "https://example.com/docs",
+        "https://example.com/",
+      ],
+      "https://example.com/docs": [
+        "https://example.com/docs/getting-started",
+        "https://example.com/contact/",
+      ],
+      "https://example.com/contact": ["https://example.com/docs/getting-started"],
+      "https://example.com/docs/getting-started": [],
+    };
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+      visitedOrder.push(url);
+    });
+    evaluate.mockImplementation(async () => pages[currentUrl] ?? []);
 
     const now = vi.spyOn(Date, "now");
     now.mockReturnValueOnce(1_000).mockReturnValueOnce(1_150);
@@ -51,10 +69,19 @@ describe("PuppeteerCrawler", () => {
       const result = await crawler.crawl("https://example.com", {});
 
       expect(launch).toHaveBeenCalledWith({ headless: true });
-      expect(goto).toHaveBeenCalledWith("https://example.com", { waitUntil: "networkidle2" });
+      expect(visitedOrder).toEqual([
+        "https://example.com/",
+        "https://example.com/about",
+        "https://example.com/docs",
+        "https://example.com/contact",
+        "https://example.com/docs/getting-started",
+      ]);
       expect(result).toEqual({
         routes: [
+          { path: "/", source: "runtime" },
           { path: "/about", source: "runtime" },
+          { path: "/docs", source: "runtime" },
+          { path: "/contact", source: "runtime" },
           { path: "/docs/getting-started", source: "runtime" },
         ],
         errors: undefined,
@@ -64,6 +91,89 @@ describe("PuppeteerCrawler", () => {
     } finally {
       now.mockRestore();
     }
+  });
+
+  test("does not revisit the same normalized URL twice", async () => {
+    const pages: Record<string, string[]> = {
+      "https://example.com/": [
+        "https://example.com/about",
+        "https://example.com/about/",
+        "https://example.com/about?from=home",
+      ],
+      "https://example.com/about": ["https://example.com/"],
+    };
+    const visitedOrder: string[] = [];
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+      visitedOrder.push(url);
+    });
+    evaluate.mockImplementation(async () => pages[currentUrl] ?? []);
+
+    const crawler = new PuppeteerCrawler({ launch });
+    const result = await crawler.crawl("https://example.com", {});
+
+    expect(visitedOrder).toEqual(["https://example.com/", "https://example.com/about"]);
+    expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
+      { path: "/about", source: "runtime" },
+    ]);
+  });
+
+  test("respects the maxDepth limit", async () => {
+    const pages: Record<string, string[]> = {
+      "https://example.com/": ["https://example.com/level-1"],
+      "https://example.com/level-1": ["https://example.com/level-2"],
+      "https://example.com/level-2": ["https://example.com/level-3"],
+    };
+    const visitedOrder: string[] = [];
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+      visitedOrder.push(url);
+    });
+    evaluate.mockImplementation(async () => pages[currentUrl] ?? []);
+
+    const crawler = new PuppeteerCrawler({ launch });
+    const result = await crawler.crawl("https://example.com", { maxDepth: 1 });
+
+    expect(visitedOrder).toEqual(["https://example.com/", "https://example.com/level-1"]);
+    expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
+      { path: "/level-1", source: "runtime" },
+    ]);
+  });
+
+  test("respects the maxPages limit", async () => {
+    const pages: Record<string, string[]> = {
+      "https://example.com/": [
+        "https://example.com/one",
+        "https://example.com/two",
+        "https://example.com/three",
+      ],
+      "https://example.com/one": [],
+      "https://example.com/two": [],
+      "https://example.com/three": [],
+    };
+    const visitedOrder: string[] = [];
+    let currentUrl = "https://example.com/";
+
+    goto.mockImplementation(async (url: string) => {
+      currentUrl = url;
+      visitedOrder.push(url);
+    });
+    evaluate.mockImplementation(async () => pages[currentUrl] ?? []);
+
+    const crawler = new PuppeteerCrawler({ launch });
+    const result = await crawler.crawl("https://example.com", { maxPages: 2 });
+
+    expect(visitedOrder).toEqual(["https://example.com/", "https://example.com/one"]);
+    expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
+      { path: "/one", source: "runtime" },
+    ]);
   });
 
   test("records goto errors and still closes the browser", async () => {
@@ -79,7 +189,7 @@ describe("PuppeteerCrawler", () => {
       expect(evaluate).not.toHaveBeenCalled();
       expect(result).toEqual({
         routes: [],
-        errors: [{ url: "https://example.com", message: "Navigation timed out" }],
+        errors: [{ url: "https://example.com/", message: "Navigation timed out" }],
         durationMs: 50,
       });
       expect(close).toHaveBeenCalledTimes(1);
@@ -94,7 +204,16 @@ describe("PuppeteerCrawler", () => {
     const crawler = new PuppeteerCrawler({ launch });
     const result = await crawler.crawl("https://example.com", {});
 
-    expect(result.errors).toEqual([{ url: "https://example.com", message: "plain failure" }]);
+    expect(result.errors).toEqual([{ url: "https://example.com/", message: "plain failure" }]);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test("rethrows browser launch failures and skips close when launch never succeeds", async () => {
+    launch.mockRejectedValue(new Error("Launch failed"));
+
+    const crawler = new PuppeteerCrawler({ launch });
+
+    await expect(crawler.crawl("https://example.com", {})).rejects.toThrowError("Launch failed");
+    expect(close).not.toHaveBeenCalled();
   });
 });

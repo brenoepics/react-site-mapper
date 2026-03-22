@@ -1,6 +1,4 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { PuppeteerCrawler } from "../src";
 
@@ -12,10 +10,57 @@ describe("PuppeteerCrawler integration", () => {
     stopServer = undefined;
   });
 
-  test("visits a real page and extracts same-origin anchor paths", async () => {
-    const fixturePath = join(import.meta.dirname, "fixtures", "index.html");
-    const html = await readFile(fixturePath, "utf8");
-    const server = createServer((_request, response) => {
+  test("crawls a five-page site breadth-first and excludes external links", async () => {
+    const pages: Record<string, string> = {
+      "/": `
+        <!doctype html>
+        <html lang="en">
+          <body>
+            <a href="/about/">About</a>
+            <a href="/docs?ref=nav">Docs</a>
+            <a href="https://example.org/external">External</a>
+          </body>
+        </html>
+      `,
+      "/about": `
+        <!doctype html>
+        <html lang="en">
+          <body>
+            <a href="/contact#team">Contact</a>
+            <a href="/docs/getting-started">Getting Started</a>
+          </body>
+        </html>
+      `,
+      "/docs": `
+        <!doctype html>
+        <html lang="en">
+          <body>
+            <a href="/docs/getting-started">Getting Started</a>
+            <a href="/contact/">Contact</a>
+          </body>
+        </html>
+      `,
+      "/docs/getting-started": `
+        <!doctype html>
+        <html lang="en">
+          <body>
+            <a href="/contact">Contact</a>
+          </body>
+        </html>
+      `,
+      "/contact": `
+        <!doctype html>
+        <html lang="en">
+          <body>
+            <p>Contact page</p>
+          </body>
+        </html>
+      `,
+    };
+    const server = createServer((request, response) => {
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+      const html = pages[requestUrl.pathname] ?? pages["/"];
+
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(html);
     });
@@ -52,7 +97,10 @@ describe("PuppeteerCrawler integration", () => {
     expect(result.errors).toBeUndefined();
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.routes).toEqual([
+      { path: "/", source: "runtime" },
       { path: "/about", source: "runtime" },
+      { path: "/docs", source: "runtime" },
+      { path: "/contact", source: "runtime" },
       { path: "/docs/getting-started", source: "runtime" },
     ]);
   }, 30_000);
