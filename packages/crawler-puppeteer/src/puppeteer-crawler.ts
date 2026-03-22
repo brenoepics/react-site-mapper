@@ -23,7 +23,7 @@ type BrowserLauncher = {
   launch(options: { headless: boolean; args?: string[] }): Promise<Browser>;
 };
 
-type RuntimeAdapter = Pick<RouteAdapter, "enhanceRuntime" | "collectRuntimeRoutes">;
+type RuntimeAdapter = Partial<Pick<RouteAdapter, "enhanceRuntime" | "collectRuntimeRoutes">>;
 
 type PuppeteerCrawlerOptions = {
   adapter?: RuntimeAdapter;
@@ -141,10 +141,11 @@ export class PuppeteerCrawler implements Crawler {
       );
 
       return {
-        routes:
+        routes: sortRoutesByPath(
           this.staticRoutes.length > 0
             ? mergeRouteCollections(this.staticRoutes, runtimeRoutes)
             : runtimeRoutes,
+        ),
         errors: errors.length > 0 ? errors : undefined,
         durationMs: Date.now() - startedAt,
       };
@@ -293,4 +294,8 @@ function buildAdapterRuntimeRoutes(routes: Map<string, Route>): Route[] {
       return meta ? { ...route, meta } : route;
     })
     .sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function sortRoutesByPath<T extends { path: string }>(routes: T[]): T[] {
+  return [...routes].sort((left, right) => left.path.localeCompare(right.path));
 }
