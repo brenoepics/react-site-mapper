@@ -1,34 +1,93 @@
-# React Site Mapper
-
-Tools for React SPA websites to discover routes and generate crawl-driven outputs like sitemaps, LLM-friendly content maps, and SEO metadata artifacts.
+# Routeflux
 
 > [!WARNING]
-> This project is under heavy development and is not ready for production use.
-> Expect breaking changes, incomplete features, and unstable APIs while the core architecture is still being built.
+> This project is under active development and not yet ready for production use.
 
-## Goal
+Routeflux is a toolkit for discovering routes from modern web frameworks and generating crawl-driven outputs like sitemaps, LLM-friendly content maps, and SEO metadata artifacts.
 
-- discover routes from React single-page apps
-- crawl pages and collect structured site data
-- generate outputs such as `sitemap.xml`, LLM ingestion files, and meta tag inputs
+## Features
 
-## Workspace
+- **Framework Adapters** - Pluggable adapters for React and Vue to extract routes from file-based and runtime routing
+- **Runtime Crawling** - Puppeteer-based crawler that navigates your app to collect dynamic route metadata
+- **Static Analysis** - Extract routes from framework conventions (Next.js pages, Vue Router files, etc.)
+- **Output Generation** - Generate sitemaps, JSON content maps, and other SEO/LLM-friendly artifacts
+- **Vite Integration** - Seamless integration via official Vite plugin
 
-- `apps/website` - demo app and playground
-- `packages/core` - shared route and crawler contracts
-- `packages/crawler-puppeteer` - Puppeteer-based runtime crawler
-- `packages/utils` - starter utility package
+## Packages
 
-## Development
+### Core
+
+| Package           | Description                                                   |
+| ----------------- | ------------------------------------------------------------- |
+| `@routeflux/core` | Shared types, contracts, route merging, and service container |
+
+### Adapters
+
+| Package                    | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `@routeflux/adapter-react` | React route adapter (file-based + runtime) |
+| `@routeflux/adapter-vue`   | Vue route adapter                          |
+
+### Infrastructure
+
+| Package                        | Description                             |
+| ------------------------------ | --------------------------------------- |
+| `@routeflux/crawler-puppeteer` | Puppeteer-based runtime crawler         |
+| `@routeflux/vite-plugin`       | Vite plugin for development integration |
+
+### Generators
+
+| Package                 | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `@routeflux/generators` | Shared output generators for crawl results |
+
+## Quick Start
 
 ```bash
-vp install
-vp run dev
+# Install dependencies
+pnpm install
+
+# Start the demo website
+pnpm dev
+
+# Run type checks and linting
+pnpm check
+
+# Run all tests
+pnpm run test -r
+
+# Build all packages
+pnpm run build -r
+
+# Full validation
+pnpm ready
 ```
 
-```bash
-vp check
-vp run check -r
-vp run test -r
-vp run build -r
+## Architecture
+
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                      Routeflux Core                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Container │  │   Merging   │  │   Type Definitions  │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        ▼                     ▼                     ▼
+┌───────────────┐    ┌───────────────┐    ┌───────────────────┐
+│  React Adapter │    │  Vue Adapter  │    │  Puppeteer Crawler │
+└───────────────┘    └───────────────┘    └───────────────────┘
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              ▼
+                   ┌───────────────────────┐
+                   │     Generators        │
+                   │  sitemap.xml, JSON,   │
+                   │  LLM content maps     │
+                   └───────────────────────┘
+```
+
+## License
+
+MIT
