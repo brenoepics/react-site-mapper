@@ -116,15 +116,13 @@ export function crawlerPlugin(options: CrawlerPluginOptions = {}): Plugin {
       }
 
       try {
-        const result = await orchestrator.runCrawl(baseUrl, options);
-        console.log(`[routeforge] Discovered ${result.routes.length} routes`);
+        const execution = await orchestrator.runCrawlWithRuntime(baseUrl, options);
+        console.log(`[routeforge] Discovered ${execution.result.routes.length} routes`);
 
         if (resolvedConfig?.build?.outDir) {
           const outDir = resolvedConfig.build.outDir;
-          const writtenFiles = await writeCrawlOutputs(result, {
-            baseUrl,
+          const writtenFiles = await writeCrawlOutputs(execution.outputs, {
             outDir,
-            output: options.output,
           });
 
           for (const filePath of writtenFiles) {
@@ -142,7 +140,13 @@ export function crawlerPlugin(options: CrawlerPluginOptions = {}): Plugin {
 }
 
 export default crawlerPlugin;
-export { detectAdapter, prepareCrawlRuntimeContext, runCrawl } from "./orchestrator";
+export {
+  createDefaultAdapters,
+  detectAdapter,
+  prepareCrawlRuntimeContext,
+  runCrawl,
+  runCrawlWithRuntime,
+} from "./orchestrator";
 
 function normalizeDevServerHost(host: string): string {
   if (host === "::" || host === "0.0.0.0") {

@@ -1,14 +1,14 @@
 {
-  "name": "@routeforge/vite-plugin",
+  "name": "@routeforge/generators",
   "version": "0.0.0",
-  "description": "Vite plugin scaffold for Routeforge.",
+  "description": "Shared output generators for Routeforge.",
   "license": "MIT",
   "files": [
     "dist"
   ],
   "type": "module",
   "sideEffects": false,
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -25,21 +25,13 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@routeforge/adapter-react": "workspace:*",
-    "@routeforge/adapter-vue": "workspace:*",
-    "@routeforge/core": "workspace:*",
-    "@routeforge/crawler-puppeteer": "workspace:*",
-    "@routeforge/generators": "workspace:*"
+    "@routeforge/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@typescript/native-preview": "7.0.0-dev.20260316.1",
     "bumpp": "^11.0.1",
     "typescript": "catalog:",
-    "vite": "catalog:",
     "vite-plus": "catalog:"
-  },
-  "peerDependencies": {
-    "vite": ">=4.0.0"
   }
 }

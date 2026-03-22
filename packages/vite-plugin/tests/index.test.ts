@@ -223,9 +223,13 @@ describe("crawlerPlugin", () => {
 
   test("runs a build crawl in closeBundle when a base URL is available", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
-      routes: [{ path: "/", source: "runtime" }],
-      durationMs: 1,
+    const runCrawlWithRuntime = vi.spyOn(orchestrator, "runCrawlWithRuntime").mockResolvedValue({
+      outputs: [],
+      result: {
+        routes: [{ path: "/", source: "runtime" }],
+        durationMs: 1,
+      },
+      runtime: {} as never,
     });
     const plugin = crawlerPlugin({ baseUrl: "https://example.com" }) as Plugin & {
       closeBundle?: () => Promise<void>;
@@ -234,12 +238,12 @@ describe("crawlerPlugin", () => {
     try {
       await plugin.closeBundle?.();
 
-      expect(runCrawl).toHaveBeenCalledWith("https://example.com", {
+      expect(runCrawlWithRuntime).toHaveBeenCalledWith("https://example.com", {
         baseUrl: "https://example.com",
       });
       expect(log).toHaveBeenCalledWith("[routeforge] Discovered 1 routes");
     } finally {
-      runCrawl.mockRestore();
+      runCrawlWithRuntime.mockRestore();
       log.mockRestore();
     }
   });
@@ -247,9 +251,25 @@ describe("crawlerPlugin", () => {
   test("writes build crawl outputs into the configured outDir", async () => {
     const outDir = await mkdtemp(join(tmpdir(), "routeforge-build-output-"));
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const runCrawl = vi.spyOn(orchestrator, "runCrawl").mockResolvedValue({
-      routes: [{ path: "/", source: "runtime" }],
-      durationMs: 1,
+    const runCrawlWithRuntime = vi.spyOn(orchestrator, "runCrawlWithRuntime").mockResolvedValue({
+      outputs: [
+        {
+          filename: "routes.json",
+          content: '[\n  {\n    "path": "/",\n    "source": "runtime"\n  }\n]\n',
+          format: "json",
+        },
+        {
+          filename: "sitemap.xml",
+          content:
+            '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://example.com</loc></url>\n</urlset>\n',
+          format: "xml",
+        },
+      ],
+      result: {
+        routes: [{ path: "/", source: "runtime" }],
+        durationMs: 1,
+      },
+      runtime: {} as never,
     });
     const plugin = crawlerPlugin({
       baseUrl: "https://fallback.example.com",
@@ -263,7 +283,7 @@ describe("crawlerPlugin", () => {
       plugin.configResolved?.({ build: { outDir }, server: { origin: "https://example.com" } });
       await plugin.closeBundle?.();
 
-      expect(runCrawl).toHaveBeenCalledWith("https://example.com", {
+      expect(runCrawlWithRuntime).toHaveBeenCalledWith("https://example.com", {
         baseUrl: "https://fallback.example.com",
         output: ["routes.json", "sitemap.xml"],
       });
@@ -274,7 +294,7 @@ describe("crawlerPlugin", () => {
       expect(log).toHaveBeenCalledWith(`[routeforge] Wrote output: ${join(outDir, "routes.json")}`);
       expect(log).toHaveBeenCalledWith(`[routeforge] Wrote output: ${join(outDir, "sitemap.xml")}`);
     } finally {
-      runCrawl.mockRestore();
+      runCrawlWithRuntime.mockRestore();
       log.mockRestore();
       await rm(outDir, { force: true, recursive: true });
     }
@@ -303,8 +323,8 @@ describe("crawlerPlugin", () => {
 
   test("logs build crawl failures without throwing", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const runCrawl = vi
-      .spyOn(orchestrator, "runCrawl")
+    const runCrawlWithRuntime = vi
+      .spyOn(orchestrator, "runCrawlWithRuntime")
       .mockRejectedValue(new Error("build crawl failed"));
     const plugin = crawlerPlugin({ baseUrl: "https://example.com" }) as Plugin & {
       closeBundle?: () => Promise<void>;
@@ -315,7 +335,7 @@ describe("crawlerPlugin", () => {
 
       expect(error).toHaveBeenCalledWith("[routeforge] Crawl failed:", expect.any(Error));
     } finally {
-      runCrawl.mockRestore();
+      runCrawlWithRuntime.mockRestore();
       error.mockRestore();
     }
   });

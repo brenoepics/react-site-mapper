@@ -8,6 +8,7 @@ export const SERVICE_KEYS = {
   CRAWLER: "crawler",
   ADAPTER: "adapter",
   GENERATOR: "generator",
+  GENERATORS: "generators",
   CONFIG: "config",
 } as const;
 
@@ -94,6 +95,20 @@ export function registerGenerator(container: Container, generator: Generator): v
  */
 export function resolveGenerator(container: Container): Generator {
   return container.resolve<Generator>(SERVICE_KEYS.GENERATOR);
+}
+
+/**
+ * Registers the active output generators.
+ */
+export function registerGenerators(container: Container, generators: Generator[]): void {
+  container.register(SERVICE_KEYS.GENERATORS, generators);
+}
+
+/**
+ * Resolves the active output generators.
+ */
+export function resolveGenerators(container: Container): Generator[] {
+  return container.resolve<Generator[]>(SERVICE_KEYS.GENERATORS);
 }
 
 /**

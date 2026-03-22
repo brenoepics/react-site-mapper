@@ -15,10 +15,12 @@ import {
   registerConfig,
   registerCrawler,
   registerGenerator,
+  registerGenerators,
   resolveAdapter,
   resolveConfig,
   resolveCrawler,
   resolveGenerator,
+  resolveGenerators,
 } from "../src";
 import type {
   CookieDefinition,
@@ -51,6 +53,7 @@ describe("public runtime exports", () => {
       CRAWLER: "crawler",
       ADAPTER: "adapter",
       GENERATOR: "generator",
+      GENERATORS: "generators",
       CONFIG: "config",
     });
     expect(typeof coreModule.Container).toBe("function");
@@ -389,15 +392,18 @@ describe("container", () => {
     registerCrawler(container, crawler);
     registerAdapter(container, adapter);
     registerGenerator(container, generator);
+    registerGenerators(container, [generator]);
     registerConfig(container, config);
 
     expect(container.has(SERVICE_KEYS.CRAWLER)).toBe(true);
     expect(container.has(SERVICE_KEYS.ADAPTER)).toBe(true);
     expect(container.has(SERVICE_KEYS.GENERATOR)).toBe(true);
+    expect(container.has(SERVICE_KEYS.GENERATORS)).toBe(true);
     expect(container.has(SERVICE_KEYS.CONFIG)).toBe(true);
     expect(resolveCrawler(container)).toBe(crawler);
     expect(resolveAdapter(container)).toBe(adapter);
     expect(resolveGenerator(container)).toBe(generator);
+    expect(resolveGenerators(container)).toEqual([generator]);
     expect(resolveConfig(container)).toBe(config);
     expect(
       (await resolveCrawler(container).crawl("https://example.com/products/1", {})).routes,

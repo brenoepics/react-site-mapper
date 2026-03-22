@@ -1,0 +1,17 @@
+{
+  "name": "docs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Project documentation site for React Site Mapper.",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "esbuild": "catalog:",
+    "vitepress": "catalog:",
+    "vitepress-carbon": "catalog:"
+  }
+}
