@@ -1,4 +1,5 @@
 import type { ProjectContext, Route, RouteAdapter } from "@routeforge/core";
+import { detectFileBasedRouting, extractFileBasedRoutes } from "./file-router";
 import { extractPathsFromSourceFile, scanSourceFiles } from "./static-extractor";
 
 /**
@@ -22,6 +23,10 @@ export class ReactAdapter implements RouteAdapter {
         return true;
       }
 
+      if (detectFileBasedRouting(project)) {
+        return true;
+      }
+
       if ("@tanstack/router" in dependencies) {
         console.warn("@tanstack/router support is not implemented yet.");
       }
@@ -37,6 +42,10 @@ export class ReactAdapter implements RouteAdapter {
    */
   async extractStaticRoutes(project: ProjectContext): Promise<Route[]> {
     const routes = new Map<string, Route>();
+
+    for (const route of await extractFileBasedRoutes(project)) {
+      routes.set(route.path, route);
+    }
 
     for (const filePath of scanSourceFiles(project.rootDir)) {
       try {

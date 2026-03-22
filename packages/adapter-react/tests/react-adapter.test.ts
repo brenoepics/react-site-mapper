@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vite-plus/test";
 import { readProjectContext } from "@routeforge/core";
+import * as fileRouter from "../src/file-router";
 import * as staticExtractor from "../src/static-extractor";
 import { ReactAdapter } from "../src";
 
@@ -47,6 +48,22 @@ describe("ReactAdapter", () => {
           devDependencies: {
             react: "^19.0.0",
             "react-router": "^7.0.0",
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  test("detects file-based React projects without React Router when vite-plugin-pages is present", () => {
+    const adapter = new ReactAdapter();
+
+    expect(
+      adapter.detect({
+        rootDir: "/workspace/app",
+        packageJson: {
+          dependencies: {
+            react: "^19.0.0",
+            "vite-plugin-pages": "^0.32.0",
           },
         },
       }),
@@ -176,6 +193,36 @@ describe("ReactAdapter", () => {
       scanSpy.mockRestore();
       extractSpy.mockRestore();
       warn.mockRestore();
+    }
+  });
+
+  test("merges AST and file-based static routes without duplicates", async () => {
+    const adapter = new ReactAdapter();
+    const fileRoutesSpy = vi
+      .spyOn(staticExtractor, "scanSourceFiles")
+      .mockReturnValue(["/workspace/app/src/routes.tsx"]);
+    const extractSpy = vi
+      .spyOn(staticExtractor, "extractPathsFromSourceFile")
+      .mockReturnValue(["/about", "/settings"]);
+    const fileBasedSpy = vi.spyOn(fileRouter, "extractFileBasedRoutes");
+
+    try {
+      fileBasedSpy.mockResolvedValue([
+        { path: "/", source: "static" },
+        { path: "/about", source: "static" },
+      ]);
+
+      await expect(
+        adapter.extractStaticRoutes({ rootDir: "/workspace/app", packageJson: {} }),
+      ).resolves.toEqual([
+        { path: "/", source: "static" },
+        { path: "/about", source: "static" },
+        { path: "/settings", source: "static" },
+      ]);
+    } finally {
+      fileRoutesSpy.mockRestore();
+      extractSpy.mockRestore();
+      fileBasedSpy.mockRestore();
     }
   });
 });
