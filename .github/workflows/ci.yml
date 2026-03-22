@@ -31,8 +31,11 @@ jobs:
       - name: Install dependencies
         run: vp install
 
-      - name: Install Chrome for Puppeteer
-        run: vp exec --filter @routeforge/crawler-puppeteer -- puppeteer browsers install chrome --install-deps
+      - name: Setup Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
 
       - name: Run checks
         id: check
@@ -42,6 +45,8 @@ jobs:
       - name: Run tests
         id: test
         continue-on-error: true
+        env:
+          PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: vp run test -r
 
       - name: Run builds
